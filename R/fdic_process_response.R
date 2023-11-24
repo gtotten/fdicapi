@@ -2,33 +2,37 @@
 #'
 #' Function to convert response from call_fdic_api() to a dataframe
 #'
-#' @param resp response from call_fdic_api()
-#' @param chunked boolean; if TRUE, then the response is chunked due to having
-#' greater than 10,000 records
+#' @param fdic_resp response from call_fdic_api()
 #' @import httr2
-#' @import dplyr
-#' @importFrom purrr map pluck bind_rows
+#' @importFrom tibble as_tibble_col
+#' @importFrom tidyr unnest_wider hoist
+#' @importFrom magrittr %>%
+#' @importFrom purrr pluck
 #'
-#' @return
+#' @return A dataframe
 #' @export
 #'
 #' @examples
-fdic_process_response <- function(resp, chunked = TRUE) {
-  if(chunked) {
-    df <- resp %>%
-        map(~.x %>% resp_body_json() %>%
-                pluck("data")) %>%
-        map(~.x %>% map(~.x$data) %>% bind_rows()) %>%
-        bind_rows()
-  } else {
-    df <- resp %>%
-        pluck("data") %>%
-        map(~.x$data) %>%
-        bind_rows()
+#' resp <- call_fdic_api(api = "financials", filters = "RSSDID: 37", fields = "RSSDID,REPDTE,ASSET,DEP", limit = 10)
+
+fdic_process_response <- function(fdic_resp) {
+  # define response function for processing single response
+  resp_function <- function(resp) {
+    resp_data <- resp %>%
+      resp_body_json() %>%
+      pluck("data") %>%
+      as_tibble_col(column_name = "resp_data") %>%
+      hoist(resp_data,
+            data = "data") %>%
+      unnest_wider(data)
+
+    return(resp_data)
   }
+
+  # process response with with resps_data
+  resps_data <- fdic_resp %>%
+    resps_data(\(resp) resp_function(resp))
+
+
 }
-
-
-
-
 

@@ -48,7 +48,7 @@ call_fdic_api(
 \item{filename}{The filename to download the data to}
 }
 \value{
-A list of queries
+A list of query responses from HTTR2
 }
 \description{
 Call the FDIC API

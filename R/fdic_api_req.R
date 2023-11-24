@@ -22,23 +22,21 @@
 #' @return A list of query responses from HTTR2
 #' @export
 
-#' @examples
-#' call_fdic_api(api = "financials", filters = "RSSDID: 37", fields = "RSSDID,REPDTE,ASSET,DEP", limit = 10)
+#' @examples call_fdic_api(api = "financials", filters = "RSSDID: 37", fields = "RSSDID,REPDTE,ASSET,DEP", limit = 10)
 
-call_fdic_api <- function(
-    api = NULL,
-    filters = NULL,
-    search = NULL,
-    fields = NULL,
-    sort_by = NULL,
-    sort_order = NULL,
-    limit = 0,
-    offset = NULL,
-    agg_by = NULL,
-    agg_term_fields = NULL,
-    format = NULL,
-    download = NULL,
-    filename = NULL) {
+call_fdic_api <- function(api = NULL,
+                          filters = NULL,
+                          search = NULL,
+                          fields = NULL,
+                          sort_by = NULL,
+                          sort_order = NULL,
+                          limit = 0,
+                          offset = NULL,
+                          agg_by = NULL,
+                          agg_term_fields = NULL,
+                          format = NULL,
+                          download = NULL,
+                          filename = NULL) {
     # get a list of queries in the current call
 
     # generate query strings by mapping the query list onto create_query
@@ -48,13 +46,25 @@ call_fdic_api <- function(
 
     base_url <- "https://banks.data.fdic.gov/api/"
 
-    queries <- match.call()[-(1)] %>%
-        as.list()
+    queries <- list(
+        filters = filters,
+        search = search,
+        fields = fields,
+        sort_by = sort_by,
+        sort_order = sort_order,
+        limit = limit,
+        offset = offset,
+        agg_by = agg_by,
+        agg_term_fields = agg_term_fields,
+        format = format,
+        download = download,
+        filename = filename
+    )
 
-    if(limit == 0) {
+    if (limit == 0) {
         queries$limit <- 10000
     } else {
-        if(limit > 10000) {
+        if (limit > 10000) {
             queries$limit <- 10000
         } else {
             queries$limit <- limit
@@ -67,50 +77,23 @@ call_fdic_api <- function(
         req_url_path_append(api) %>%
         req_url_query(!!!queries)
 
-    # perform the initial request and get the total records to be broken
-    # into chunks
-    resp_1 <- req %>%
-        req_perform() %>%
-        resp_body_json()
-
-
-    if(limit == 0) {
-        total_records <- resp_1$totals$count
-    } else {
-        if (limit > 10000) {
-            total_records <- min(limit, resp_1$totals$count)
-            } else {
-                total_records <- limit
-            }
+    page_count <- function(resp) {
+        ifelse(limit == 0,
+               ceiling(resp_body_json(resp)$meta$total),
+               limit) / queries$limit
     }
 
-
-
-    # check to see if the total_records are over 10,000; if so then use the
-    # iterate_with_offset function to create a list of queries to be performed
-    # and then perform them
-    if (total_records > 10000) {
-        # create a list of offsets to be used in the query
-        queries$limit <- 10000
-
-        offsets <- 1:ceiling(total_records / 10000)
-
-        # create a list of queries to be performed
-        resp <-req_perform_iterative(
-                 req,
-                 next_req = iterate_with_offset("offset", start = 0,
-                                                offset = 1),
-                 max_reqs = ceiling(total_records / 10000)
-                )
+    # create a list of queries to be performed
+    resps <- req_perform_iterative(req,
+                                   next_req = iterate_with_offset(
+                                       "offset",
+                                       start = 0,
+                                       offset = queries$limit,
+                                       resp_pages = page_count
+                                   ))
 
 
 
-    } else {
-        resp <- resp_1
 
-
-    }
-
-    return(resp)
+    return(resps)
 }
-
