@@ -23,7 +23,6 @@
 #' @export
 
 #' @examples call_fdic_api(api = "financials", filters = "RSSDID: 37", fields = "RSSDID,REPDTE,ASSET,DEP", limit = 10)
-
 call_fdic_api <- function(api = NULL,
                           filters = NULL,
                           search = NULL,
@@ -71,26 +70,28 @@ call_fdic_api <- function(api = NULL,
         }
     }
 
-
-    req <- request("https://banks.data.fdic.gov/api/") %>%
+    req <- request(base_url) %>%
         req_headers(Accept = "application/json") %>%
         req_url_path_append(api) %>%
         req_url_query(!!!queries)
 
     page_count <- function(resp) {
-        ifelse(limit == 0,
-               ceiling(resp_body_json(resp)$meta$total),
-               limit) / queries$limit
+        ifelse(
+            limit == 0,
+            ceiling(resp_body_json(resp)$meta$total / queries$limit),
+            ceiling(limit / queries$limit)
+        )
     }
 
     # create a list of queries to be performed
     resps <- req_perform_iterative(req,
-                                   next_req = iterate_with_offset(
-                                       "offset",
-                                       start = 0,
-                                       offset = queries$limit,
-                                       resp_pages = page_count
-                                   ))
+        next_req = iterate_with_offset(
+            "offset",
+            start = 0,
+            offset = queries$limit,
+            resp_pages = page_count
+        )
+    )
 
 
 
